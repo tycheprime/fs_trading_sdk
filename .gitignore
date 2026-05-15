@@ -13,3 +13,5 @@ internal_sdk_docs/ui_images/
 # Docusaurus
 packages/docs/build/
 packages/docs/.docusaurus/
+
+.claude/settings*.json
