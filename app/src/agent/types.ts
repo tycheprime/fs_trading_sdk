@@ -1,4 +1,14 @@
-// Shared types for the BTC market-maker agent.
+// Shared types for the multi-market oracle agent.
+
+export type AgentDistributionType =
+  | 'gaussian'
+  | 'spike'
+  | 'range'
+  | 'bimodal'
+  | 'leftskew'
+  | 'rightskew'
+  | 'dip'
+  | 'uniform';
 
 // A single search result returned by exa.ai.
 export interface ExaResult {
@@ -10,20 +20,25 @@ export interface ExaResult {
 
 // The structured forecast Claude produces from the exa.ai results.
 export interface AgentEstimate {
-  pointEstimate: number; // best estimate of BTC USD price on Dec 31 2026
-  low: number; // low end of the 90% confidence interval
-  high: number; // high end of the 90% confidence interval
-  changedMind: boolean; // true when this turn materially updated the forecast
+  distributionType: AgentDistributionType;
+  pointEstimate: number; // best estimate / primary peak in outcome units
+  low: number; // 90% CI low, or range low, in outcome units
+  high: number; // 90% CI high, or range high
+  secondaryPeak?: number; // second peak for bimodal
+  peakWeight?: number; // 0–1 weight on secondaryPeak for bimodal
+  changedMind: boolean;
   confidence: 'low' | 'medium' | 'high';
   rationale: string;
-  keySources: string[]; // titles of the sources that drove the estimate
+  keySources: string[];
 }
 
 // How the agent turned an estimate into a belief vector.
 export interface BeliefBuild {
-  belief: number[]; // normalized belief vector, length numBuckets + 2
-  center: number; // gaussian center, in USD
-  spread: number; // gaussian spread (sigma), in USD
+  belief: number[];
+  distributionType: AgentDistributionType;
+  label: string;
+  center: number;
+  spread: number;
 }
 
 // Lifecycle phase of a single agent cycle.

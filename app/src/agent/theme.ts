@@ -1,9 +1,5 @@
 import type { FSThemeInput } from '@functionspace/react';
 
-// The agent always makes a market on #242: "Bitcoin Spot Price (USD, December 31 2026)".
-// Custom market creation is out of scope; this id comes from the live engine.
-export const BTC_MARKET_ID = 242;
-
 // Custom dark "trading terminal" theme built from the 9 required SDK tokens.
 // Bitcoin orange as the primary, a cool blue as the agent/signal accent.
 export const agentTheme: FSThemeInput = {

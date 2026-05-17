@@ -1,10 +1,17 @@
 import { Panel } from './Panel';
 import { MONO } from '../theme';
-import { formatUsd, clockTime } from '../format';
+import { DISTRIBUTION_LABELS } from '../belief';
+import { formatOutcome, clockTime } from '../format';
 import type { CycleRecord } from '../types';
 
 // Chronological log of every agent cycle: forecast and belief.
-export function ActivityLog({ cycles }: { cycles: CycleRecord[] }) {
+export function ActivityLog({
+  cycles,
+  units = '',
+}: {
+  cycles: CycleRecord[];
+  units?: string;
+}) {
   return (
     <Panel
       title="Cycle Log"
@@ -53,13 +60,14 @@ export function ActivityLog({ cycles }: { cycles: CycleRecord[] }) {
                   <span style={{ color: 'var(--fs-text-secondary)' }}>
                     no new sources · forecast held at{' '}
                     <strong style={{ color: 'var(--fs-primary)' }}>
-                      {formatUsd(c.estimate!.pointEstimate)}
+                      {formatOutcome(c.estimate!.pointEstimate, units)}
                     </strong>
                   </span>
                 ) : c.estimate ? (
                   <span>
                     <strong style={{ color: 'var(--fs-primary)' }}>
-                      {formatUsd(c.estimate.pointEstimate)}
+                      {DISTRIBUTION_LABELS[c.estimate.distributionType]}{' '}
+                      {formatOutcome(c.estimate.pointEstimate, units)}
                     </strong>
                     <span style={{ color: 'var(--fs-text-secondary)' }}>
                       {' '}

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import type { MarketState } from '@functionspace/core';
 import { StatusPill } from './StatusPill';
 import { MONO } from '../theme';
@@ -8,7 +9,6 @@ interface HeaderProps {
   market: MarketState | null;
 }
 
-// Top bar: brand, market title, and agent status.
 export function Header({ status, market }: HeaderProps) {
   return (
     <header
@@ -34,12 +34,13 @@ export function Header({ status, market }: HeaderProps) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: 22,
+            fontSize: 14,
             fontWeight: 800,
             flexShrink: 0,
+            fontFamily: MONO,
           }}
         >
-          ₿
+          FS
         </div>
         <div style={{ minWidth: 0 }}>
           <div
@@ -50,7 +51,7 @@ export function Header({ status, market }: HeaderProps) {
               letterSpacing: '0.04em',
             }}
           >
-            BTC ORACLE <span style={{ color: 'var(--fs-primary)' }}>AGENT</span>
+            ORACLE <span style={{ color: 'var(--fs-primary)' }}>AGENT</span>
           </div>
           <div
             style={{
@@ -59,10 +60,19 @@ export function Header({ status, market }: HeaderProps) {
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
-              maxWidth: 420,
+              maxWidth: 480,
             }}
           >
-            {market ? market.title : 'Loading market #242 ...'}
+            {market ? (
+              <>
+                <Link to="/" className="fs-agent-link" style={{ marginRight: 8 }}>
+                  ← Markets
+                </Link>
+                {market.title}
+              </>
+            ) : (
+              'Loading market…'
+            )}
           </div>
         </div>
       </div>

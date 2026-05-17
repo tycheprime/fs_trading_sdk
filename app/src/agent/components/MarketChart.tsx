@@ -1,4 +1,4 @@
-import { useContext } from 'react';
+import { useContext, useMemo } from 'react';
 import { FunctionSpaceContext } from '@functionspace/react';
 import {
   evaluateDensityCurve,
@@ -19,7 +19,7 @@ import {
 } from 'recharts';
 import type { BeliefBuild } from '../types';
 import { MONO } from '../theme';
-import { formatUsd, formatUsdShort } from '../format';
+import { formatOutcome, formatUsdShort } from '../format';
 
 const POINTS = 200;
 
@@ -35,6 +35,7 @@ export function MarketChart({ market, beliefBuild }: MarketChartProps) {
   const ctx = useContext(FunctionSpaceContext);
   const colors = ctx?.chartColors;
   const { lowerBound, upperBound } = market.config;
+  const units = market.xAxisUnits || '';
 
   const consensusCurve = evaluateDensityCurve(
     market.consensus,
@@ -46,11 +47,45 @@ export function MarketChart({ market, beliefBuild }: MarketChartProps) {
     ? evaluateDensityCurve(beliefBuild.belief, lowerBound, upperBound, POINTS)
     : null;
 
-  const data = consensusCurve.map((p, i) => ({
-    x: p.x,
-    consensus: p.y,
-    agent: agentCurve ? (agentCurve[i]?.y ?? null) : null,
-  }));
+  const previewPayout = ctx?.previewPayout;
+
+  const data = useMemo(() => {
+    const points = consensusCurve.map((p, i) => ({
+      x: p.x,
+      consensus: p.y,
+      agent: agentCurve ? (agentCurve[i]?.y ?? null) : null,
+      payout: undefined as number | undefined,
+    }));
+
+    if (previewPayout?.previews?.length) {
+      const previews = previewPayout.previews;
+      const step =
+        (upperBound - lowerBound) / (market.config.numBuckets || 50);
+      for (const point of points) {
+        let best = previews[0];
+        let bestDist = Math.abs(best.outcome - point.x);
+        for (let j = 1; j < previews.length; j++) {
+          const dist = Math.abs(previews[j].outcome - point.x);
+          if (dist < bestDist) {
+            best = previews[j];
+            bestDist = dist;
+          }
+        }
+        if (bestDist < step * 2) {
+          point.payout = best.payout;
+        }
+      }
+    }
+
+    return points;
+  }, [
+    consensusCurve,
+    agentCurve,
+    previewPayout,
+    lowerBound,
+    upperBound,
+    market.config.numBuckets,
+  ]);
 
   const consensusStats = computeStatistics(
     market.consensus,
@@ -98,14 +133,15 @@ export function MarketChart({ market, beliefBuild }: MarketChartProps) {
         <span>
           consensus mean{' '}
           <strong style={{ color: 'var(--fs-text)' }}>
-            {formatUsd(consensusMean)}
+            {formatOutcome(consensusMean, units)}
           </strong>
         </span>
         {beliefBuild && (
           <span>
             agent center{' '}
             <strong style={{ color: agentColor }}>
-              {formatUsd(beliefBuild.center)}
+              {formatOutcome(beliefBuild.center, units)}
+              {beliefBuild.label ? ` (${beliefBuild.label})` : ''}
             </strong>
           </span>
         )}
@@ -138,12 +174,45 @@ export function MarketChart({ market, beliefBuild }: MarketChartProps) {
                 fontFamily: MONO,
                 fontSize: 12,
               }}
-              labelStyle={{ color: 'var(--fs-text)' }}
-              labelFormatter={(v) => formatUsd(Number(v))}
-              formatter={(value: number, name: string) => [
-                value != null ? value.toFixed(5) : '-',
-                name === 'consensus' ? 'consensus density' : 'agent density',
-              ]}
+              content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+                const row = payload[0]?.payload as {
+                  consensus?: number;
+                  agent?: number | null;
+                  payout?: number;
+                };
+                return (
+                  <div
+                    style={{
+                      background: 'var(--fs-surface)',
+                      border: '1px solid var(--fs-border)',
+                      borderRadius: 6,
+                      padding: '8px 10px',
+                      fontFamily: MONO,
+                      fontSize: 12,
+                    }}
+                  >
+                    <div style={{ marginBottom: 6, color: 'var(--fs-text)' }}>
+                      {formatOutcome(Number(label), units)}
+                    </div>
+                    {row?.consensus != null && (
+                      <div style={{ color: consensusColor }}>
+                        consensus: {row.consensus.toFixed(5)}
+                      </div>
+                    )}
+                    {row?.agent != null && (
+                      <div style={{ color: agentColor }}>
+                        agent: {row.agent.toFixed(5)}
+                      </div>
+                    )}
+                    {row?.payout != null && (
+                      <div style={{ color: 'var(--fs-positive)', marginTop: 4 }}>
+                        preview payout: {formatUsdShort(row.payout)}
+                      </div>
+                    )}
+                  </div>
+                );
+              }}
             />
             <Area
               type="monotone"

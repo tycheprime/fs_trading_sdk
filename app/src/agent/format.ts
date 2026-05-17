@@ -4,6 +4,14 @@ export function formatUsd(n: number): string {
   return '$' + Math.round(n).toLocaleString('en-US');
 }
 
+export function formatOutcome(n: number, units: string): string {
+  const u = units.trim();
+  if (u === 'USD' || u === '$') return formatUsd(n);
+  return (
+    Math.round(n).toLocaleString('en-US') + (u ? ` ${u}` : '')
+  );
+}
+
 // Compact USD: $1.2k, $145k, $1.4M
 export function formatUsdShort(n: number): string {
   const abs = Math.abs(n);

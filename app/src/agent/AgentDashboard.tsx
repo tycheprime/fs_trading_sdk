@@ -1,16 +1,31 @@
+import { useMemo, useState } from 'react';
 import { useAgent } from './useAgent';
-import { BTC_MARKET_ID, MONO } from './theme';
+import { MONO } from './theme';
 import { Header } from './components/Header';
 import { Panel } from './components/Panel';
 import { MarketChart } from './components/MarketChart';
 import { AgentPanel } from './components/AgentPanel';
 import { ActivityLog } from './components/ActivityLog';
 import { SourcesPanel } from './components/SourcesPanel';
+import { AgentVsCrowdPanel } from './components/AgentVsCrowdPanel';
+import { PayoutPreviewPanel } from './components/PayoutPreviewPanel';
+import {
+  CycleReplaySelect,
+  resolveChartBeliefBuild,
+} from './components/CycleReplaySelect';
 
 // The full agent terminal: header, distribution chart + cycle log on the
 // left, agent controls + signal on the right.
-export function AgentDashboard() {
-  const agent = useAgent(BTC_MARKET_ID);
+export function AgentDashboard({ marketId }: { marketId: string | number }) {
+  const agent = useAgent(marketId);
+  const [replayCycleId, setReplayCycleId] = useState<number | null>(null);
+
+  const chartBeliefBuild = useMemo(
+    () => resolveChartBeliefBuild(agent.beliefBuild, agent.cycles, replayCycleId),
+    [agent.beliefBuild, agent.cycles, replayCycleId],
+  );
+
+  const units = agent.market?.xAxisUnits ?? '';
 
   return (
     <div
@@ -33,7 +48,6 @@ export function AgentDashboard() {
           padding: 16,
         }}
       >
-        {/* Left column: distribution chart and cycle log. */}
         <div
           style={{
             display: 'flex',
@@ -42,11 +56,24 @@ export function AgentDashboard() {
             minHeight: 0,
           }}
         >
-          <Panel title="Probability Distribution — BTC/USD on 2026-12-31">
+          <Panel
+            title={
+              agent.market
+                ? `Probability Distribution — ${agent.market.title}`
+                : 'Probability Distribution'
+            }
+            right={
+              <CycleReplaySelect
+                cycles={agent.cycles}
+                replayCycleId={replayCycleId}
+                onReplayCycleId={setReplayCycleId}
+              />
+            }
+          >
             {agent.market ? (
               <MarketChart
                 market={agent.market}
-                beliefBuild={agent.beliefBuild}
+                beliefBuild={chartBeliefBuild}
               />
             ) : (
               <div
@@ -60,14 +87,13 @@ export function AgentDashboard() {
                   fontSize: 13,
                 }}
               >
-                Loading market #{BTC_MARKET_ID} …
+                Loading market #{marketId} …
               </div>
             )}
           </Panel>
-          <ActivityLog cycles={agent.cycles} />
+          <ActivityLog cycles={agent.cycles} units={units} />
         </div>
 
-        {/* Right column: agent controls and exa signal. */}
         <div
           className="fs-agent-scroll fs-agent-rail"
           style={{
@@ -78,7 +104,17 @@ export function AgentDashboard() {
             overflowY: 'auto',
           }}
         >
+          <AgentVsCrowdPanel
+            market={agent.market}
+            estimate={agent.forecast}
+            beliefBuild={agent.beliefBuild}
+          />
           <AgentPanel agent={agent} />
+          <PayoutPreviewPanel
+            marketId={marketId}
+            beliefBuild={agent.beliefBuild}
+            units={units}
+          />
           <SourcesPanel sources={agent.allSources} />
         </div>
       </main>

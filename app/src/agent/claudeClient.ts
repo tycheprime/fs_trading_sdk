@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
-import type { ExaResult, AgentEstimate } from './types';
+import type { AgentDistributionType, AgentEstimate, ExaResult } from './types';
+import { AGENT_DISTRIBUTION_TYPES } from './distributions';
 
 const claude = new Anthropic({
   apiKey: 'injected-by-vite-proxy',
@@ -11,81 +12,117 @@ const claude = new Anthropic({
 
 const MODEL = 'claude-opus-4-7';
 
-const SYSTEM_PROMPT = `You are a calibrated forecasting agent acting as an informed market maker.
+function buildSystemPrompt(ctx: InterpretContext): string {
+  const distList = ctx.allowedDistributions.join(', ');
+  const expiry = ctx.expiresAt
+    ? `Expected resolution around ${ctx.expiresAt.slice(0, 10)}.`
+    : 'Resolution date is unspecified.';
 
-Your market: the FunctionSpace prediction market "Bitcoin Spot Price (USD, December 31 2026)". It settles to the real BTC/USD spot price on 2026-12-31. The market's outcome space runs from 0 to 200000 USD.
+  return `You are a calibrated forecasting agent for functionSPACE prediction markets.
 
-You keep a running forecast for this market. On the first turn you read an initial batch of web sources. On later turns you receive only NEW sources and decide whether your prior point estimate and confidence interval still hold.
+functionSPACE markets trade beliefs as probability curves over a numerical outcome range — not simple yes/no contracts. Traders express where they think the outcome will land and how confident they are. Your job is to read web sources and submit a belief shape the protocol can turn into a curve.
+
+Market: "${ctx.marketTitle}"
+Outcome range: ${ctx.lowerBound} to ${ctx.upperBound} ${ctx.xAxisUnits}
+${expiry}
+
+You keep a running forecast in this conversation. On later turns you only see NEW sources and decide whether to revise.
+
+Distribution types (pick the one that best matches your view):
+- gaussian: default bell curve around point_estimate (most forecasts)
+- spike: extremely tight peak — you are very sure of one level
+- range: flat belief between low and high — outcome likely in a band, not a point
+- bimodal: two distinct scenarios (set secondary_peak and peak_weight 0–1 on the higher peak)
+- leftskew: longer tail below point_estimate (downside risk)
+- rightskew: longer tail above point_estimate (upside risk)
+- dip: low probability near point_estimate, higher at edges (rare; use only if evidence supports it)
+- uniform: no information — spread doubt across the whole range (rare)
+
+Allowed distribution_type values: ${distList}
 
 Each response:
 1. Weigh all evidence in this conversation.
-2. Submit point_estimate with a 90% confidence interval (low, high).
-3. Set changed_mind true only if you materially update the forecast versus your prior submission in this conversation.
-4. Give a one or two sentence rationale.
+2. Call submit_market_forecast with distribution_type, point_estimate, low, high, and optional bimodal fields.
+3. Set changed_mind true only if you materially change type or parameters versus your prior submission.
+4. One or two sentence rationale.
 
-Calibration rules:
-- point_estimate and interval must lie within 0 to 200000 USD.
-- low < point_estimate < high.
-- Widen the interval when sources are weak or conflicting.
-- Do not anchor on round numbers.
+Rules:
+- point_estimate, low, high must lie within [${ctx.lowerBound}, ${ctx.upperBound}].
+- low < point_estimate < high (except uniform may use full range for low/high).
+- Widen the interval when sources are weak.
 
-Conclude by calling submit_btc_estimate exactly once. Do not ask questions.`;
+Conclude with submit_market_forecast exactly once.`;
+}
 
-const ESTIMATE_TOOL: Anthropic.Tool = {
-  name: 'submit_btc_estimate',
-  description:
-    "Submit the agent's structured forecast for the BTC/USD spot price on 2026-12-31.",
-  input_schema: {
-    type: 'object',
-    properties: {
-      point_estimate: {
-        type: 'number',
-        description: 'Best estimate of the BTC/USD spot price on 2026-12-31.',
+function buildEstimateTool(allowed: AgentDistributionType[]): Anthropic.Tool {
+  return {
+    name: 'submit_market_forecast',
+    description: 'Submit a belief shape for this functionSPACE market.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        distribution_type: {
+          type: 'string',
+          enum: allowed,
+          description: 'Belief shape over the market outcome range.',
+        },
+        point_estimate: {
+          type: 'number',
+          description: `Best estimate in ${'outcome units'}.`,
+        },
+        low: {
+          type: 'number',
+          description: 'Low end of 90% interval or range low.',
+        },
+        high: {
+          type: 'number',
+          description: 'High end of 90% interval or range high.',
+        },
+        secondary_peak: {
+          type: 'number',
+          description: 'Second peak location (bimodal only).',
+        },
+        peak_weight: {
+          type: 'number',
+          description: 'Weight on secondary_peak, 0 to 1 (bimodal only).',
+        },
+        changed_mind: {
+          type: 'boolean',
+          description:
+            'True if materially changed from prior forecast in this conversation.',
+        },
+        confidence: {
+          type: 'string',
+          enum: ['low', 'medium', 'high'],
+        },
+        rationale: { type: 'string' },
+        key_sources: {
+          type: 'array',
+          items: { type: 'string' },
+        },
       },
-      low: {
-        type: 'number',
-        description: 'Low end of the 90% confidence interval, in USD.',
-      },
-      high: {
-        type: 'number',
-        description: 'High end of the 90% confidence interval, in USD.',
-      },
-      changed_mind: {
-        type: 'boolean',
-        description:
-          'True if the forecast changed materially from your prior submission. False on first forecast or if unchanged.',
-      },
-      confidence: {
-        type: 'string',
-        enum: ['low', 'medium', 'high'],
-        description: 'How much the available sources constrain the estimate.',
-      },
-      rationale: {
-        type: 'string',
-        description: 'One or two sentences explaining the estimate.',
-      },
-      key_sources: {
-        type: 'array',
-        items: { type: 'string' },
-        description: 'Titles of the sources that most informed this update.',
-      },
+      required: [
+        'distribution_type',
+        'point_estimate',
+        'low',
+        'high',
+        'changed_mind',
+        'confidence',
+        'rationale',
+      ],
     },
-    required: [
-      'point_estimate',
-      'low',
-      'high',
-      'changed_mind',
-      'confidence',
-      'rationale',
-    ],
-  },
-};
+  };
+}
 
 export interface InterpretContext {
   todayISO: string;
   consensusMean: number;
   lowerBound: number;
   upperBound: number;
+  marketTitle: string;
+  xAxisUnits: string;
+  expiresAt: string | null;
+  allowedDistributions: AgentDistributionType[];
 }
 
 export interface ForecastTurnResult {
@@ -108,13 +145,24 @@ function formatSources(sources: ExaResult[]): string {
 function marketContextBlock(ctx: InterpretContext): string {
   return `Today is ${ctx.todayISO}.
 
-The FunctionSpace market consensus currently estimates the 2026-12-31 BTC price at about $${Math.round(
-    ctx.consensusMean,
-  ).toLocaleString()}.`;
+Market consensus mean is about ${Math.round(ctx.consensusMean).toLocaleString()} ${ctx.xAxisUnits}.`;
 }
 
 function num(value: unknown, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function parseDistributionType(
+  raw: unknown,
+  allowed: AgentDistributionType[],
+): AgentDistributionType {
+  if (
+    typeof raw === 'string' &&
+    (allowed as string[]).includes(raw)
+  ) {
+    return raw as AgentDistributionType;
+  }
+  return 'gaussian';
 }
 
 function parseEstimate(
@@ -123,23 +171,27 @@ function parseEstimate(
 ): AgentEstimate {
   const { lowerBound, upperBound } = ctx;
   const point = num(raw.point_estimate, ctx.consensusMean);
-  let low = num(raw.low, point * 0.6);
-  let high = num(raw.high, point * 1.4);
+  let low = num(raw.low, point * 0.85);
+  let high = num(raw.high, point * 1.15);
   if (low > high) [low, high] = [high, low];
   low = Math.max(lowerBound, low);
   high = Math.min(upperBound, high);
 
-  const confidence =
-    raw.confidence === 'low' || raw.confidence === 'high'
-      ? raw.confidence
-      : 'medium';
+  const distributionType = parseDistributionType(
+    raw.distribution_type,
+    ctx.allowedDistributions,
+  );
 
-  return {
+  const estimate: AgentEstimate = {
+    distributionType,
     pointEstimate: Math.min(Math.max(point, lowerBound), upperBound),
     low,
     high,
     changedMind: raw.changed_mind === true,
-    confidence,
+    confidence:
+      raw.confidence === 'low' || raw.confidence === 'high'
+        ? raw.confidence
+        : 'medium',
     rationale:
       typeof raw.rationale === 'string' && raw.rationale
         ? raw.rationale
@@ -148,12 +200,26 @@ function parseEstimate(
       ? raw.key_sources.filter((s): s is string => typeof s === 'string')
       : [],
   };
+
+  if (distributionType === 'bimodal') {
+    estimate.secondaryPeak = Math.min(
+      Math.max(num(raw.secondary_peak, high), lowerBound),
+      upperBound,
+    );
+    estimate.peakWeight = Math.min(
+      Math.max(num(raw.peak_weight, 0.5), 0),
+      1,
+    );
+  }
+
+  return estimate;
 }
 
 async function runForecastTurn(
   messages: Anthropic.MessageParam[],
   ctx: InterpretContext,
 ): Promise<{ estimate: AgentEstimate; assistantMessage: Anthropic.Message }> {
+  const tool = buildEstimateTool(ctx.allowedDistributions);
   let response: Anthropic.Message;
   try {
     response = await claude.messages.create({
@@ -163,11 +229,11 @@ async function runForecastTurn(
       system: [
         {
           type: 'text',
-          text: SYSTEM_PROMPT,
+          text: buildSystemPrompt(ctx),
           cache_control: { type: 'ephemeral' },
         },
       ],
-      tools: [ESTIMATE_TOOL],
+      tools: [tool],
       tool_choice: { type: 'auto', disable_parallel_tool_use: true },
       messages,
     });
@@ -185,10 +251,10 @@ async function runForecastTurn(
 
   const toolUse = response.content.find(
     (block): block is Anthropic.ToolUseBlock =>
-      block.type === 'tool_use' && block.name === 'submit_btc_estimate',
+      block.type === 'tool_use' && block.name === 'submit_market_forecast',
   );
   if (!toolUse) {
-    throw new Error('Claude did not return a structured estimate.');
+    throw new Error('Claude did not return a structured forecast.');
   }
 
   return {
@@ -220,6 +286,21 @@ function appendTurn(
   ];
 }
 
+function priorForecastSummary(prior: AgentEstimate, units: string): string {
+  const lines = [
+    `- distribution_type: ${prior.distributionType}`,
+    `- point_estimate: ${Math.round(prior.pointEstimate).toLocaleString()} ${units}`,
+    `- low / high: ${Math.round(prior.low).toLocaleString()} – ${Math.round(prior.high).toLocaleString()} ${units}`,
+    `- rationale: ${prior.rationale}`,
+  ];
+  if (prior.distributionType === 'bimodal' && prior.secondaryPeak != null) {
+    lines.push(
+      `- secondary_peak: ${Math.round(prior.secondaryPeak).toLocaleString()}, peak_weight: ${prior.peakWeight ?? 0.5}`,
+    );
+  }
+  return lines.join('\n');
+}
+
 export async function runInitialForecast(
   sources: ExaResult[],
   ctx: InterpretContext,
@@ -231,7 +312,7 @@ export async function runInitialForecast(
 
   const userText = `${marketContextBlock(ctx)}
 
-This is your first forecast for this market. Read these web sources (${sources.length} articles) and submit your forecast.
+First forecast for this market. Read these sources (${sources.length}) and submit your belief shape.
 
 ${formatSources(sources)}`;
 
@@ -265,12 +346,10 @@ export async function runRevisionForecast(
 
   const userText = `${marketContextBlock(ctx)}
 
-New articles (${newSources.length}). Your prior forecast in this conversation:
-- point_estimate: $${Math.round(priorEstimate.pointEstimate).toLocaleString()}
-- 90% interval: $${Math.round(priorEstimate.low).toLocaleString()} – $${Math.round(priorEstimate.high).toLocaleString()}
-- rationale: ${priorEstimate.rationale}
+New articles (${newSources.length}). Prior forecast:
+${priorForecastSummary(priorEstimate, ctx.xAxisUnits)}
 
-Read only the NEW sources below. Update the forecast only if they materially change your view; otherwise repeat the same numbers and set changed_mind to false.
+Read only NEW sources. Update only if they materially change your view; otherwise repeat the same parameters and set changed_mind to false.
 
 ${formatSources(newSources)}`;
 
@@ -289,3 +368,5 @@ ${formatSources(newSources)}`;
     messages: appendTurn(priorMessages, userText, assistantMessage, toolUse.id),
   };
 }
+
+export { AGENT_DISTRIBUTION_TYPES };

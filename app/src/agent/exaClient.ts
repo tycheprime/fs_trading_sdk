@@ -1,26 +1,21 @@
 import type { ExaResult } from './types';
 
-// exa.ai is reached through the Vite /exa dev proxy, which injects EXA_API_KEY
-// server-side (see vite.config.ts). The browser never sees the key.
-
-const SEARCH_QUERY =
-  'Bitcoin BTC price forecast outlook and analyst predictions for end of 2026';
-
-// Search exa.ai for recent Bitcoin price news that informs the agent's estimate.
-export async function searchBitcoinNews(
+export async function searchMarketNews(
+  marketTitle: string,
   signal?: AbortSignal,
 ): Promise<ExaResult[]> {
-  // Bias toward fresh coverage: only results published in the last 120 days.
   const since = new Date(Date.now() - 1000 * 60 * 60 * 24 * 120)
     .toISOString()
     .slice(0, 10);
+
+  const query = `Latest news, data, and expert forecasts about: ${marketTitle}. Focus on information relevant to predicting the market outcome.`;
 
   const res = await fetch('/exa/search', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     signal,
     body: JSON.stringify({
-      query: SEARCH_QUERY,
+      query,
       type: 'auto',
       numResults: 8,
       startPublishedDate: since,

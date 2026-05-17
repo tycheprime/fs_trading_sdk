@@ -2,8 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
 
-// BTC market-maker agent: an autonomous agent that searches exa.ai, has Claude
-// interpret the results, and re-positions itself on FunctionSpace market #242.
+// Multi-market oracle agent: browse open markets, then run a per-market forecaster.
 import App from './AgentApp';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

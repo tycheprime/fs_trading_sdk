@@ -1,17 +1,24 @@
-import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { FunctionSpaceContext, useMarket } from '@functionspace/react';
 import { validateBeliefVector, computeStatistics } from '@functionspace/core';
 import type { MarketState } from '@functionspace/core';
-import { searchBitcoinNews } from './exaClient';
+import { searchMarketNews } from './exaClient';
 import { runInitialForecast, runRevisionForecast } from './claudeClient';
 import { estimateToBelief } from './belief';
+import { AGENT_DISTRIBUTION_TYPES } from './distributions';
 import {
   createEmptySession,
   loadMarketSession,
   mergeSources,
   saveMarketSession,
 } from './marketSession';
-import type { AgentStatus, BeliefBuild, CycleRecord, ExaResult } from './types';
+import type {
+  AgentEstimate,
+  AgentStatus,
+  BeliefBuild,
+  CycleRecord,
+  ExaResult,
+} from './types';
 
 const MAX_HISTORY = 30;
 const DEFAULT_POLL_SEC = 20;
@@ -23,6 +30,7 @@ export interface UseAgentResult {
   cycles: CycleRecord[];
   currentCycle: CycleRecord | null;
   beliefBuild: BeliefBuild | null;
+  forecast: AgentEstimate | null;
   allSources: ExaResult[];
   error: string | null;
   autoMode: boolean;
@@ -85,7 +93,7 @@ export function useAgent(marketId: string | number): UseAgentResult {
 
     try {
       setStatus('searching');
-      const incoming = await searchBitcoinNews();
+      const incoming = await searchMarketNews(mkt.title);
 
       let session = loadMarketSession(marketId) ?? createEmptySession(marketId);
       const { merged, added } = mergeSources(session.sources, incoming);
@@ -116,6 +124,10 @@ export function useAgent(marketId: string | number): UseAgentResult {
               ).mean,
         lowerBound: mkt.config.lowerBound,
         upperBound: mkt.config.upperBound,
+        marketTitle: mkt.title,
+        xAxisUnits: mkt.xAxisUnits || '',
+        expiresAt: mkt.expiresAt,
+        allowedDistributions: AGENT_DISTRIBUTION_TYPES,
       };
 
       setStatus('thinking');
@@ -208,6 +220,12 @@ export function useAgent(marketId: string | number): UseAgentResult {
       ? Math.max(0, Math.ceil((nextRunAt - now) / 1000))
       : null;
 
+  const forecast = useMemo(() => {
+    const fromCycle = cycles.find((c) => c.estimate)?.estimate;
+    if (fromCycle) return fromCycle;
+    return loadMarketSession(marketId)?.lastEstimate ?? null;
+  }, [cycles, marketId]);
+
   return {
     status,
     market: market ?? null,
@@ -215,6 +233,7 @@ export function useAgent(marketId: string | number): UseAgentResult {
     cycles,
     currentCycle: cycles[0] ?? null,
     beliefBuild,
+    forecast,
     allSources,
     error,
     autoMode,

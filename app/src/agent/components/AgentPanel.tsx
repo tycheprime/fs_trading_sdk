@@ -1,7 +1,9 @@
 import type { CSSProperties } from 'react';
 import { Panel } from './Panel';
 import { MONO } from '../theme';
-import { formatUsd } from '../format';
+import { DISTRIBUTION_LABELS } from '../belief';
+import { SHAPE_HINTS } from '../shapeHints';
+import { formatOutcome } from '../format';
 import type { UseAgentResult } from '../useAgent';
 
 const CONFIDENCE_COLOR: Record<string, string> = {
@@ -21,8 +23,9 @@ const labelStyle: CSSProperties = {
 // The agent's control center: latest estimate and the run / auto-cycle /
 // interval controls.
 export function AgentPanel({ agent }: { agent: UseAgentResult }) {
-  const estimate = agent.currentCycle?.estimate ?? null;
-  const build = agent.currentCycle?.beliefBuild ?? null;
+  const estimate = agent.forecast;
+  const build = agent.beliefBuild ?? agent.currentCycle?.beliefBuild ?? null;
+  const units = agent.market?.xAxisUnits ?? '';
 
   return (
     <Panel title="Agent Control">
@@ -30,7 +33,9 @@ export function AgentPanel({ agent }: { agent: UseAgentResult }) {
         {/* Estimate readout */}
         {estimate ? (
           <div>
-            <div style={labelStyle}>Forecast — BTC on 2026-12-31</div>
+            <div style={labelStyle}>
+              {DISTRIBUTION_LABELS[estimate.distributionType]} forecast
+            </div>
             <div
               style={{
                 fontFamily: MONO,
@@ -41,7 +46,7 @@ export function AgentPanel({ agent }: { agent: UseAgentResult }) {
                 marginTop: 4,
               }}
             >
-              {formatUsd(estimate.pointEstimate)}
+              {formatOutcome(estimate.pointEstimate, units)}
             </div>
             <div
               style={{
@@ -56,7 +61,8 @@ export function AgentPanel({ agent }: { agent: UseAgentResult }) {
               }}
             >
               <span>
-                90% CI {formatUsd(estimate.low)} – {formatUsd(estimate.high)}
+                90% band {formatOutcome(estimate.low, units)} –{' '}
+                {formatOutcome(estimate.high, units)}
               </span>
               <span
                 style={{
@@ -75,6 +81,27 @@ export function AgentPanel({ agent }: { agent: UseAgentResult }) {
               ) : (
                 <span>held forecast</span>
               )}
+            </div>
+            <div
+              style={{
+                marginTop: 10,
+                padding: '10px 12px',
+                borderRadius: 6,
+                border: '1px solid var(--fs-border)',
+                background: 'var(--fs-bg-secondary, #0b0e13)',
+              }}
+            >
+              <div style={labelStyle}>Why this shape</div>
+              <p
+                style={{
+                  margin: '6px 0 0',
+                  fontSize: 12,
+                  lineHeight: 1.45,
+                  color: 'var(--fs-text-secondary)',
+                }}
+              >
+                {SHAPE_HINTS[estimate.distributionType]}
+              </p>
             </div>
             <p
               style={{
@@ -96,8 +123,8 @@ export function AgentPanel({ agent }: { agent: UseAgentResult }) {
                   letterSpacing: 0,
                 }}
               >
-                belief: gaussian, center {formatUsd(build.center)}, spread ±
-                {formatUsd(build.spread)}
+                on chart: {build.label} · center{' '}
+                {formatOutcome(build.center, units)}
               </div>
             )}
           </div>
@@ -109,8 +136,8 @@ export function AgentPanel({ agent }: { agent: UseAgentResult }) {
               padding: '8px 0',
             }}
           >
-            No forecast yet. Run a cycle to have the agent search exa.ai and
-            build its belief.
+            Waiting for first forecast. Auto-cycle runs exa every 20s and
+            calls Claude only when new articles appear.
           </div>
         )}
 
@@ -132,7 +159,6 @@ export function AgentPanel({ agent }: { agent: UseAgentResult }) {
             suffix="sec"
             value={agent.intervalSec}
             min={20}
-            max={300}
             step={10}
             onChange={agent.setIntervalSec}
           />
