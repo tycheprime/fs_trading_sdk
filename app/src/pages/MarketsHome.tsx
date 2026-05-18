@@ -48,16 +48,16 @@ export function MarketsHome() {
             <BrandMark accentClassName="fs-markets-accent" />
           </div>
           <p className="fs-markets-tagline">
-            News-driven forecasts for any open functionSPACE market: web search,
-            structured belief curves (not yes/no), and payout preview without
-            placing a trade.
+            Pick any open market. An AI reads the news, sketches a full belief
+            curve, and shows where it breaks from the crowd—plus what you&apos;d
+            earn if you traded that view. No wallet required.
           </p>
           <ul className="fs-markets-bullets">
-            <li>Exa search every 5 minutes; Claude runs only when new articles appear</li>
-            <li>Gaussian, bimodal, range, and other shapes when the narrative fits</li>
-            <li>Agent vs crowd consensus and hypothetical payout on the chart</li>
+            <li>Exa polls the web every 5 minutes; Claude revises only when headlines change</li>
+            <li>Curves, not coin flips: Gaussian, bimodal, range, and more</li>
+            <li>Agent vs consensus on one chart, with live payout preview</li>
             {isRemoteSessionEnabled() && (
-              <li>Forecasts sync to Postgres so new visitors skip cold starts</li>
+              <li>Shared forecast memory in Postgres—open a market and skip the cold start</li>
             )}
           </ul>
         </div>
