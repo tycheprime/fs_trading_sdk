@@ -1,4 +1,4 @@
-// Shared types for the multi-market oracle agent.
+// Shared types for the Tycheprime Agent app.
 
 export type AgentDistributionType =
   | 'gaussian'

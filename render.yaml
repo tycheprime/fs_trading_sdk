@@ -1,6 +1,27 @@
+databases:
+  - name: tycheprime-agent-db
+    plan: free
+
 services:
   - type: web
-    name: oracle-agent
+    name: tycheprime-agent-cache
+    runtime: node
+    rootDir: app
+    plan: free
+    buildCommand: npm install
+    startCommand: node server/index.mjs
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tycheprime-agent-db
+          property: connectionString
+      - key: ALLOWED_ORIGINS
+        value: "https://fs-trading-sdk.onrender.com,http://localhost:3000"
+
+  - type: web
+    name: tycheprime-agent
     runtime: static
     rootDir: .
     buildCommand: npm install && npm run build -w app
@@ -10,6 +31,11 @@ services:
         value: "20"
       - key: VITE_FS_BASE_URL
         value: "https://fs-engine-api.onrender.com"
+      - key: VITE_AGENT_CACHE_URL
+        fromService:
+          type: web
+          name: tycheprime-agent-cache
+          property: host
     routes:
       - type: rewrite
         source: /*

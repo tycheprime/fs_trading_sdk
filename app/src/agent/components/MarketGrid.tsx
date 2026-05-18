@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { MarketState } from '@functionspace/core';
 import { loadMarketSession } from '../marketSession';
+import { fetchSessionSummaries, type SessionSummary } from '../remoteSession';
 import { MONO } from '../theme';
 import { formatOutcome, formatUsdShort } from '../format';
 import { isWatched, loadWatchlist, toggleWatchlist } from '../watchlist';
@@ -22,6 +23,15 @@ function consensusLabel(m: MarketState): string {
 
 export function MarketGrid({ markets, loading }: MarketGridProps) {
   const [watchTick, setWatchTick] = useState(0);
+  const [remoteSummaries, setRemoteSummaries] = useState<Map<string, SessionSummary>>(
+    () => new Map(),
+  );
+
+  useEffect(() => {
+    void fetchSessionSummaries().then((list) => {
+      setRemoteSummaries(new Map(list.map((s) => [String(s.marketId), s])));
+    });
+  }, []);
 
   const sorted = useMemo(() => {
     const pinned = new Set(loadWatchlist());
@@ -56,7 +66,11 @@ export function MarketGrid({ markets, loading }: MarketGridProps) {
     <div className="fs-market-grid">
       {sorted.map((m) => {
         const session = loadMarketSession(m.marketId);
-        const changed = session?.lastEstimate?.changedMind;
+        const remote = remoteSummaries.get(String(m.marketId));
+        const changed =
+          session?.lastEstimate?.changedMind === true ||
+          remote?.changedMind === true;
+        const hasForecast = !!(session?.lastEstimate ?? remote?.pointEstimate != null);
         const pinned = isWatched(m.marketId);
 
         return (
@@ -70,6 +84,14 @@ export function MarketGrid({ markets, loading }: MarketGridProps) {
                 #{m.marketId}
               </span>
               <div className="fs-market-card-top-right">
+                {hasForecast && (
+                  <span
+                    className="fs-market-badge fs-market-badge-cached"
+                    style={{ fontFamily: MONO }}
+                  >
+                    cached
+                  </span>
+                )}
                 {changed && (
                   <span
                     className="fs-market-badge fs-market-badge-changed"

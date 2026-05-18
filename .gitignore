@@ -17,3 +17,4 @@ packages/docs/build/
 packages/docs/.docusaurus/
 
 .claude/settings*.json
+app/server/.data/

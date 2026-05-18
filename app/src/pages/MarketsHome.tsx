@@ -15,10 +15,10 @@ export function MarketsHome() {
       <header className="fs-markets-header">
         <div>
           <div className="fs-markets-brand">
-            ORACLE <span className="fs-markets-accent">AGENT</span>
+            TYCHEPRIME <span className="fs-markets-accent">AGENT</span>
           </div>
           <p className="fs-markets-tagline">
-            News-driven oracle for any open functionSPACE market: web search,
+            News-driven forecasts for any open functionSPACE market: web search,
             structured belief curves (not yes/no), and payout preview without
             placing a trade.
           </p>

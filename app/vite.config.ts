@@ -2,7 +2,7 @@ import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 
-// The agent calls exa.ai and the Claude API. Both are reached through dev-server
+// Tycheprime Agent calls exa.ai and the Claude API. Both are reached through dev-server
 // proxies so the API keys stay server-side and never reach the browser bundle.
 // Keys are read from app/.env.local (gitignored). See README_AGENT.md.
 export default defineConfig(({ mode }) => {
@@ -41,6 +41,11 @@ export default defineConfig(({ mode }) => {
               proxyReq.setHeader('anthropic-version', '2023-06-01');
             });
           },
+        },
+        '/agent-cache': {
+          target: env.VITE_AGENT_CACHE_URL || 'http://localhost:8787',
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/agent-cache/, ''),
         },
       },
     },

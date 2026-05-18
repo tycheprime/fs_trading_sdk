@@ -6,12 +6,13 @@ import { searchMarketNews } from './exaClient';
 import { runInitialForecast, runRevisionForecast } from './claudeClient';
 import { estimateToBelief } from './belief';
 import { AGENT_DISTRIBUTION_TYPES } from './distributions';
+import { loadMarketSession, mergeSources } from './marketSession';
 import {
-  createEmptySession,
-  loadMarketSession,
-  mergeSources,
-  saveMarketSession,
-} from './marketSession';
+  getOrCreateSession,
+  hydrateMarketSession,
+  persistMarketSession,
+} from './sessionSync';
+import { isRemoteSessionEnabled } from './remoteSession';
 import type {
   AgentEstimate,
   AgentStatus,
@@ -59,6 +60,7 @@ export function useAgent(marketId: string | number): UseAgentResult {
   const [intervalSec, setIntervalSec] = useState(DEFAULT_POLL_SEC);
   const [nextRunAt, setNextRunAt] = useState<number | null>(Date.now());
   const [now, setNow] = useState(Date.now());
+  const [cacheReady, setCacheReady] = useState(() => !isRemoteSessionEnabled());
 
   const runningRef = useRef(false);
   const cycleCounter = useRef(0);
@@ -95,7 +97,7 @@ export function useAgent(marketId: string | number): UseAgentResult {
       setStatus('searching');
       const incoming = await searchMarketNews(mkt.title);
 
-      let session = loadMarketSession(marketId) ?? createEmptySession(marketId);
+      let session = getOrCreateSession(marketId);
       const { merged, added } = mergeSources(session.sources, incoming);
       session = { ...session, sources: merged };
       setAllSources(merged);
@@ -103,7 +105,7 @@ export function useAgent(marketId: string | number): UseAgentResult {
       record = { ...record, sources: merged, newSourceCount: added.length };
 
       if (added.length === 0 && session.lastEstimate) {
-        saveMarketSession(session);
+        persistMarketSession(session);
         record = {
           ...record,
           skipped: true,
@@ -159,7 +161,7 @@ export function useAgent(marketId: string | number): UseAgentResult {
       record = { ...record, beliefBuild };
       setBeliefBuild(beliefBuild);
 
-        saveMarketSession(session);
+        persistMarketSession(session);
         record = { ...record, finishedAt: Date.now() };
         setStatus('idle');
       }
@@ -185,15 +187,34 @@ export function useAgent(marketId: string | number): UseAgentResult {
   }, []);
 
   useEffect(() => {
-    const session = loadMarketSession(marketId);
-    if (session?.sources.length) {
-      setAllSources(session.sources);
+    let cancelled = false;
+    const applySession = (session: ReturnType<typeof loadMarketSession>) => {
+      if (!session || cancelled) return;
+      if (session.sources.length) setAllSources(session.sources);
+      if (session.lastEstimate && market) {
+        const build = estimateToBelief(session.lastEstimate, market.config);
+        setBeliefBuild(build);
+        ctx.setPreviewBelief(build.belief);
+      }
+    };
+
+    if (!isRemoteSessionEnabled()) {
+      applySession(loadMarketSession(marketId));
+      setCacheReady(true);
+      return () => {
+        cancelled = true;
+      };
     }
-    if (session?.lastEstimate && market) {
-      const build = estimateToBelief(session.lastEstimate, market.config);
-      setBeliefBuild(build);
-      ctx.setPreviewBelief(build.belief);
-    }
+
+    setCacheReady(false);
+    void hydrateMarketSession(marketId).then((session) => {
+      applySession(session);
+      if (!cancelled) setCacheReady(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [marketId, market, ctx]);
 
   useEffect(() => {
@@ -202,11 +223,11 @@ export function useAgent(marketId: string | number): UseAgentResult {
   }, []);
 
   useEffect(() => {
-    if (!autoMode || nextRunAt == null || marketLoading || !market) return;
+    if (!autoMode || !cacheReady || nextRunAt == null || marketLoading || !market) return;
     if (now >= nextRunAt && !runningRef.current) {
       void runCycle();
     }
-  }, [autoMode, nextRunAt, now, runCycle, marketLoading, market]);
+  }, [autoMode, cacheReady, nextRunAt, now, runCycle, marketLoading, market]);
 
   useEffect(() => {
     return () => {

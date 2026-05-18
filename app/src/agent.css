@@ -1,4 +1,4 @@
-/* Base styles for the oracle agent app. */
+/* Base styles for the Tycheprime Agent app. */
 
 :root {
   --fs-agent-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
@@ -391,6 +391,11 @@ button.fs-header-back {
   text-transform: uppercase;
   border-radius: 4px;
   padding: 2px 6px;
+}
+
+.fs-market-badge-cached {
+  color: var(--fs-text-secondary, #8b949e);
+  border: 1px solid var(--fs-border, #30363d);
 }
 
 .fs-market-badge-changed {

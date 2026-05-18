@@ -17,7 +17,7 @@ export function Header({ status, market }: HeaderProps) {
         </MarketsLink>
         <div className="fs-agent-header-titles">
           <MarketsLink className="fs-header-brand">
-            ORACLE <span className="fs-header-brand-accent">AGENT</span>
+            TYCHEPRIME <span className="fs-header-brand-accent">AGENT</span>
           </MarketsLink>
           <div className="fs-header-subtitle">
             <MarketsLink className="fs-agent-link fs-header-back">

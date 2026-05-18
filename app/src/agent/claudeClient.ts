@@ -10,7 +10,7 @@ const claude = new Anthropic({
   maxRetries: 1,
 });
 
-const MODEL = 'claude-opus-4-7';
+const MODEL = 'claude-sonnet-4-6';
 
 function buildSystemPrompt(ctx: InterpretContext): string {
   const distList = ctx.allowedDistributions.join(', ');
@@ -224,8 +224,7 @@ async function runForecastTurn(
   try {
     response = await claude.messages.create({
       model: MODEL,
-      max_tokens: 4000,
-      thinking: { type: 'adaptive' },
+      max_tokens: 2048,
       system: [
         {
           type: 'text',
