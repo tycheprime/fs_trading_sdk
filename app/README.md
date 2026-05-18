@@ -246,7 +246,7 @@ A blueprint example lives in [`../render.yaml`](../render.yaml).
 | Symptom | Likely cause | Fix |
 |---------|----------------|-----|
 | `Unexpected end of JSON input` on Exa | UI hitting static host `/exa/search` | Set `VITE_AGENT_CACHE_URL` and redeploy static site |
-| `Connection error` on Claude (Exa works) | CORS blocked Anthropic SDK headers (`x-stainless-*`) | Redeploy agent API (OPTIONS echoes `Access-Control-Request-Headers`) |
+| `Connection error` on Claude (Exa works) | CORS: blocked SDK headers or duplicate `Access-Control-Allow-Origin` (`*` + your site) | Redeploy agent API (latest `proxy.mjs` strips upstream CORS) |
 | `invalid x-api-key` on Claude | Browser placeholder key reached Anthropic | Deploy agent API that strips client `x-api-key` |
 | `/market/:id` shows "Not Found" on refresh | Missing SPA rewrite | Add `/*` → `/index.html` on static site |
 | Agent API `/` is `not_found` | No root route | Use `/health` instead |
