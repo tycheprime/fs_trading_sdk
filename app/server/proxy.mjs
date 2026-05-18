@@ -22,10 +22,21 @@ async function readBody(req) {
   return Buffer.concat(chunks);
 }
 
+const STRIP_FROM_UPSTREAM = new Set([
+  ...HOP_BY_HOP,
+  'access-control-allow-origin',
+  'access-control-allow-headers',
+  'access-control-allow-methods',
+  'access-control-allow-credentials',
+  'access-control-expose-headers',
+  'access-control-max-age',
+]);
+
 function filterResponseHeaders(headers) {
   const out = {};
   for (const [key, value] of Object.entries(headers)) {
-    if (HOP_BY_HOP.has(key.toLowerCase())) continue;
+    const lower = key.toLowerCase();
+    if (STRIP_FROM_UPSTREAM.has(lower)) continue;
     out[key] = value;
   }
   return out;
@@ -93,8 +104,8 @@ export async function proxyToUpstream(req, res, corsHeaders, config) {
           ms: Date.now() - started,
         });
         res.writeHead(status, {
-          ...corsHeaders,
           ...filterResponseHeaders(upstreamRes.headers),
+          ...corsHeaders,
         });
         upstreamRes.pipe(res);
         upstreamRes.on('end', resolve);
