@@ -246,7 +246,8 @@ A blueprint example lives in [`../render.yaml`](../render.yaml).
 | Symptom | Likely cause | Fix |
 |---------|----------------|-----|
 | `Unexpected end of JSON input` on Exa | UI hitting static host `/exa/search` | Set `VITE_AGENT_CACHE_URL` and redeploy static site |
-| `Connection error` / invalid Claude key | Browser placeholder key reached Anthropic | Deploy latest agent API (proxy strips client `x-api-key`) |
+| `Connection error` on Claude (Exa works) | CORS blocked Anthropic SDK headers (`x-stainless-*`) | Redeploy agent API (OPTIONS echoes `Access-Control-Request-Headers`) |
+| `invalid x-api-key` on Claude | Browser placeholder key reached Anthropic | Deploy agent API that strips client `x-api-key` |
 | `/market/:id` shows "Not Found" on refresh | Missing SPA rewrite | Add `/*` → `/index.html` on static site |
 | Agent API `/` is `not_found` | No root route | Use `/health` instead |
 | Shared forecasts missing | No Postgres or wrong `VITE_AGENT_CACHE_URL` | Check `/debug/status`, `DATABASE_URL`, CORS `ALLOWED_ORIGINS` |
